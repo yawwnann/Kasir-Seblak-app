@@ -1,13 +1,14 @@
 package com.example.seblak.ui.screens
 
-import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells // Import untuk Grid
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid // Import untuk Grid
+import androidx.compose.foundation.lazy.grid.items // Import items untuk Grid
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -29,7 +30,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import android.widget.Toast
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
@@ -38,7 +38,6 @@ import com.example.seblak.db.MenuDao
 import com.example.seblak.model.Menu
 import com.example.seblak.ui.theme.ButtonRed
 import com.example.seblak.ui.theme.PrimaryRedText
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -46,8 +45,8 @@ import java.io.File
 import java.text.NumberFormat
 import java.util.Locale
 
-const val TAG_MENU_SCREEN = "MenuScreen"
-const val TAG_MENU_ITEM_CARD = "MenuItemCard"
+const val TAG_MENU_SCREEN = "MenuScreenComposables"
+const val TAG_MENU_ITEM_CARD = "MenuItemCardComposables"
 
 @Composable
 fun MenuContentScreen(menuDao: MenuDao, onNavigateToTambahMenu: () -> Unit) {
@@ -79,45 +78,71 @@ fun MenuContentScreen(menuDao: MenuDao, onNavigateToTambahMenu: () -> Unit) {
     }
 
     if (showDeleteDialog && menuToDelete != null) {
+        val itemToDeleteCurrently = menuToDelete
         AlertDialog(
             onDismissRequest = {
+                Log.d(TAG_MENU_SCREEN, "DIALOG: Dismissed")
                 showDeleteDialog = false
                 menuToDelete = null
             },
             title = { Text("Konfirmasi Hapus") },
-            text = { Text("Anda yakin ingin menghapus menu '${menuToDelete?.nama}'?") },
+            text = { Text("Anda yakin ingin menghapus menu '${itemToDeleteCurrently?.nama}'?") },
             confirmButton = {
                 Button(
                     onClick = {
+                        Log.d(TAG_MENU_SCREEN, "DIALOG: Confirm button clicked for ${itemToDeleteCurrently?.nama}")
                         scope.launch {
-                            menuToDelete?.let { item ->
-                                Log.d(TAG_MENU_SCREEN, "Deleting menu item: ${item.nama}, ID: ${item.id}")
+                            itemToDeleteCurrently?.let { item ->
+                                Log.d(TAG_MENU_SCREEN, "CONFIRM DELETE: Attempting to delete: ${item.nama}, ID: ${item.id}")
+                                var deleteSuccessInDb = false
                                 withContext(Dispatchers.IO) {
-                                    menuDao.deleteMenu(item.id)
-                                    item.imageUri?.let { path -> File(path).delete() }
+                                    val rowsAffected = menuDao.deleteMenu(item.id)
+                                    if (rowsAffected > 0) {
+                                        deleteSuccessInDb = true
+                                        Log.d(TAG_MENU_SCREEN, "CONFIRM DELETE: DB delete successful for ID: ${item.id}, rows: $rowsAffected")
+                                        item.imageUri?.let { path ->
+                                            try {
+                                                val imageFile = File(path)
+                                                if (imageFile.exists()) {
+                                                    if (imageFile.delete()) {
+                                                        Log.d(TAG_MENU_SCREEN, "CONFIRM DELETE: Image file deleted: $path")
+                                                    } else {
+                                                        Log.w(TAG_MENU_SCREEN, "CONFIRM DELETE: Failed to delete image file: $path")
+                                                    }
+                                                } else {
+                                                    Log.w(TAG_MENU_SCREEN, "CONFIRM DELETE: Image file not found for deletion: $path")
+                                                }
+                                            } catch (e: Exception) {
+                                                Log.e(TAG_MENU_SCREEN, "CONFIRM DELETE: Error deleting image file: $path", e)
+                                            }
+                                        }
+                                    } else {
+                                        Log.e(TAG_MENU_SCREEN, "CONFIRM DELETE: DB delete FAILED for ID: ${item.id}")
+                                    }
                                 }
-                                Log.d(TAG_MENU_SCREEN, "Menu item deleted. Triggering refresh.")
-                                Toast.makeText(context, "'${item.nama}' berhasil dihapus.", Toast.LENGTH_SHORT).show()
-                                refreshTrigger++
+                                if (deleteSuccessInDb) {
+                                    Toast.makeText(context, "'${item.nama}' berhasil dihapus.", Toast.LENGTH_SHORT).show()
+                                    refreshTrigger++
+                                    Log.d(TAG_MENU_SCREEN, "CONFIRM DELETE: Refresh triggered. New trigger value: $refreshTrigger")
+                                } else {
+                                    Toast.makeText(context, "Gagal menghapus '${item.nama}' dari database.", Toast.LENGTH_LONG).show()
+                                }
                             }
                         }
                         showDeleteDialog = false
                         menuToDelete = null
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Ya, Hapus")
-                }
+                ) { Text("Ya, Hapus") }
             },
             dismissButton = {
                 TextButton(
                     onClick = {
+                        Log.d(TAG_MENU_SCREEN, "DIALOG: Cancel button clicked")
                         showDeleteDialog = false
                         menuToDelete = null
                     }
-                ) {
-                    Text("Batal")
-                }
+                ) { Text("Batal") }
             }
         )
     }
@@ -141,11 +166,9 @@ fun MenuContentScreen(menuDao: MenuDao, onNavigateToTambahMenu: () -> Unit) {
         ) {
             when {
                 isLoading -> {
-                    Log.d(TAG_MENU_SCREEN, "Showing loading indicator.")
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 }
                 errorLoading -> {
-                    Log.d(TAG_MENU_SCREEN, "Showing error loading message.")
                     Text(
                         "Gagal memuat menu. Coba lagi nanti.",
                         modifier = Modifier.align(Alignment.Center).padding(16.dp),
@@ -154,7 +177,6 @@ fun MenuContentScreen(menuDao: MenuDao, onNavigateToTambahMenu: () -> Unit) {
                     )
                 }
                 menuList.isEmpty() -> {
-                    Log.d(TAG_MENU_SCREEN, "Menu list is empty. Showing empty state message.")
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -170,14 +192,15 @@ fun MenuContentScreen(menuDao: MenuDao, onNavigateToTambahMenu: () -> Unit) {
                     }
                 }
                 else -> {
-                    Log.d(TAG_MENU_SCREEN, "Displaying menu list with ${menuList.size} items.")
-                    LazyColumn(
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2), // <--- PENGATURAN DUA KOLOM
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(all = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        contentPadding = PaddingValues(all = 12.dp), // Padding keseluruhan grid
+                        verticalArrangement = Arrangement.spacedBy(12.dp), // Jarak antar baris
+                        horizontalArrangement = Arrangement.spacedBy(12.dp) // Jarak antar kolom
                     ) {
                         items(items = menuList, key = { menu -> menu.id }) { menu ->
-                            MenuItemCard(
+                            MenuItemCard( // MenuItemCard tetap sama
                                 menu = menu,
                                 onAddToCartClicked = {
                                     Log.d(TAG_MENU_SCREEN, "Add to cart clicked for: ${menu.nama}")
@@ -198,7 +221,7 @@ fun MenuContentScreen(menuDao: MenuDao, onNavigateToTambahMenu: () -> Unit) {
 }
 
 @Composable
-fun MenuItemCard(
+fun MenuItemCard( // Definisi MenuItemCard tetap sama seperti sebelumnya (dengan tombol aksi di bawah)
     menu: Menu,
     onAddToCartClicked: () -> Unit,
     onDeleteClicked: () -> Unit
@@ -206,110 +229,125 @@ fun MenuItemCard(
     val currencyFormatter = remember {
         NumberFormat.getCurrencyInstance(Locale("in", "ID"))
     }
-    Log.d(TAG_MENU_ITEM_CARD, "Rendering MenuItemCard for: ${menu.nama}, Image Path: ${menu.imageUri}")
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth(), // Ini akan membuat kartu mengisi lebar sel grid
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp))
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            if (!menu.imageUri.isNullOrBlank()) {
-                Log.d(TAG_MENU_ITEM_CARD, "Attempting to load image for ${menu.nama} from Path: ${menu.imageUri}")
-                val context = LocalContext.current
-                val imageFile = remember(menu.imageUri) { File(menu.imageUri!!) }
-
-                val painter = rememberAsyncImagePainter(
-                    model = ImageRequest.Builder(context)
-                        .data(imageFile)
-                        .placeholder(R.drawable.placeholder_image)
-                        .error(R.drawable.ic_error_image)
-                        .fallback(R.drawable.ic_error_image)
-                        .crossfade(true)
-                        .build(),
-                    onState = { state ->
-                        when (state) {
-                            is AsyncImagePainter.State.Loading -> Log.d(TAG_MENU_ITEM_CARD, "Painter State: Loading for ${menu.nama}...")
-                            is AsyncImagePainter.State.Success -> Log.d(TAG_MENU_ITEM_CARD, "Painter State: Success for ${menu.nama}. From: ${state.result.dataSource}")
-                            is AsyncImagePainter.State.Error -> Log.e(TAG_MENU_ITEM_CARD, "Painter State: Error for ${menu.nama}. Path: ${menu.imageUri}", state.result.throwable)
-                            else -> Log.d(TAG_MENU_ITEM_CARD, "Painter State: ${state::class.java.simpleName} for ${menu.nama}")
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                val imagePath = menu.imageUri
+                if (imagePath != null && imagePath.isNotBlank()) {
+                    val context = LocalContext.current
+                    val imageFile = remember(imagePath) { File(imagePath) }
+                    val painter = rememberAsyncImagePainter(
+                        model = ImageRequest.Builder(context)
+                            .data(imageFile)
+                            .placeholder(R.drawable.placeholder_image)
+                            .error(R.drawable.ic_error_image)
+                            .fallback(R.drawable.ic_error_image)
+                            .crossfade(true)
+                            .build(),
+                        onState = { state ->
+                            when (state) {
+                                is AsyncImagePainter.State.Loading -> Log.d(TAG_MENU_ITEM_CARD, "Painter State: Loading for ${menu.nama}...")
+                                is AsyncImagePainter.State.Success -> Log.d(TAG_MENU_ITEM_CARD, "Painter State: Success for ${menu.nama}. From: ${state.result.dataSource}")
+                                is AsyncImagePainter.State.Error -> Log.e(TAG_MENU_ITEM_CARD, "Painter State: Error for ${menu.nama}. Path: $imagePath", state.result.throwable)
+                                else -> Log.d(TAG_MENU_ITEM_CARD, "Painter State: ${state::class.java.simpleName} for ${menu.nama}")
+                            }
                         }
-                    }
-                )
-
-                Image(
-                    painter = painter,
-                    contentDescription = menu.nama,
-                    modifier = Modifier
-                        .size(88.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Log.d(TAG_MENU_ITEM_CARD, "Image URI is null or blank for ${menu.nama}. Showing placeholder icon.")
-                Box(
-                    modifier = Modifier
-                        .size(88.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.RestaurantMenu,
-                        contentDescription = "Placeholder Menu Icon",
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
-                        modifier = Modifier.size(40.dp)
                     )
+                    Image(
+                        painter = painter,
+                        contentDescription = menu.nama,
+                        modifier = Modifier
+                            .fillMaxWidth() // Buat gambar mengisi lebar kartu di grid
+                            .height(100.dp) // Atur tinggi gambar yang konsisten untuk grid
+                            .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)), // Hanya sudut atas jika gambar di paling atas
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp)
+                            .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.RestaurantMenu,
+                            contentDescription = "Placeholder Menu Icon",
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
                 }
             }
+            // Kolom untuk teks dan tombol sekarang di bawah gambar
+            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                Spacer(modifier = Modifier.width(0.dp)) // Hapus spacer horizontal, karena gambar sudah di atas
 
-            Spacer(modifier = Modifier.width(16.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = menu.nama,
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
-                    color = PrimaryRedText
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = currencyFormatter.format(menu.harga),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
-                    color = MaterialTheme.colorScheme.primary
-                )
-                if (!menu.deskripsi.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(6.dp))
+                Column(modifier = Modifier.fillMaxWidth()) { // Kolom untuk teks detail (Nama, Harga, Deskripsi)
                     Text(
-                        text = menu.deskripsi ?: "",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = menu.nama,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), // Mungkin titleMedium lebih pas
+                        color = PrimaryRedText,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = currencyFormatter.format(menu.harga),
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium), // Mungkin bodyLarge
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    if (!menu.deskripsi.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = menu.deskripsi ?: "",
+                            style = MaterialTheme.typography.bodySmall, // Deskripsi lebih kecil
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2, // Sesuaikan maxLines untuk deskripsi di grid
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                // Baris untuk tombol aksi, berada di bawah semua detail teks
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp), // Padding atas sebelum tombol
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = onAddToCartClicked) {
+                    IconButton(
+                        onClick = onAddToCartClicked,
+                        modifier = Modifier.size(36.dp) // Perkecil IconButton
+                    ) {
                         Icon(
                             Icons.Filled.AddShoppingCart,
                             contentDescription = "Tambah ke Keranjang",
-                            tint = MaterialTheme.colorScheme.primary
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp) // Perkecil Icon
                         )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(onClick = onDeleteClicked) {
+                    IconButton(
+                        onClick = onDeleteClicked,
+                        modifier = Modifier.size(36.dp) // Perkecil IconButton
+                    ) {
                         Icon(
                             Icons.Filled.DeleteOutline,
                             contentDescription = "Hapus Menu",
-                            tint = MaterialTheme.colorScheme.error
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp) // Perkecil Icon
                         )
                     }
                 }
@@ -318,26 +356,18 @@ fun MenuItemCard(
     }
 }
 
-@Preview(showBackground = true, name = "Menu Content Screen - Empty")
-@Composable
-fun MenuContentScreenEmptyPreview() {
-    MaterialTheme {
-        Surface {
-            MenuContentScreen(menuDao = MenuDao(LocalContext.current), onNavigateToTambahMenu = {})
-        }
-    }
-}
 
-@Preview(showBackground = true, name = "Menu Content Screen - With Data")
+@Preview(showBackground = true, name = "Menu Content Screen Grid - With Data")
 @Composable
-fun MenuContentScreenWithDataPreview() {
+fun MenuContentScreenGridPreview() {
     val context = LocalContext.current
     val dummyMenuDao = object : MenuDao(context) {
         override fun getAllMenu(): List<Menu> {
             return listOf(
-                Menu(1, "Seblak Original Pedas", 15000.0, "Seblak original dengan kerupuk kenyal, sayuran segar, dan level pedas pilihanmu.", null),
-                Menu(2, "Seblak Ceker Mercon", 18000.0, "Seblak nikmat dengan tambahan ceker ayam empuk yang melimpah dan bumbu mercon.", "/data/user/0/com.example.seblak/files/menu_img_Seblak_Ceker_Mercon_1621600000000.jpg"),
-                Menu(3, "Seblak Seafood Komplit", 25000.0, "Perpaduan aneka seafood segar dalam kuah seblak yang kaya rasa.", null)
+                Menu(1, "Seblak Ori", 15000.0, "Seblak original pedas.", null),
+                Menu(2, "Seblak Ceker", 18000.0, "Seblak ceker ayam.", "/data/user/0/com.example.seblak/files/menu_img_Seblak_Ceker_Mercon_1621600000000.jpg"),
+                Menu(3, "Seblak Seafood", 25000.0, "Seblak seafood komplit.", null),
+                Menu(4, "Seblak Sosis Bakso", 17000.0, "Seblak dengan sosis dan bakso.", null)
             )
         }
     }
@@ -348,24 +378,12 @@ fun MenuContentScreenWithDataPreview() {
     }
 }
 
-@Preview(showBackground = true, name = "Menu Item Card Preview - With Image Path")
+@Preview(showBackground = true, widthDp = 200) // Preview dengan lebar lebih kecil untuk satu kartu
 @Composable
-fun MenuItemCardPreviewWithImagePath() {
+fun MenuItemCardGridPreview() {
     MaterialTheme {
         MenuItemCard(
-            menu = Menu(1, "Seblak Komplit Istimewa", 25000.0, "Seblak super komplit dengan topping melimpah ruah, rasa pedas nampol.", imageUri = "/data/user/0/com.example.seblak/files/menu_img_preview.jpg"),
-            onAddToCartClicked = {},
-            onDeleteClicked = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, name = "Menu Item Card Preview - No Image")
-@Composable
-fun MenuItemCardPreviewNoImage() {
-    MaterialTheme {
-        MenuItemCard(
-            menu = Menu(1, "Seblak Tanpa Gambar", 12000.0, "Seblak polosan tanpa gambar.", imageUri = null),
+            menu = Menu(1, "Seblak Komplit Istimewa Super Panjang Namanya", 25000.0, "Deskripsi yang cukup panjang untuk melihat bagaimana teks akan terpotong atau wrap di dalam kartu yang lebih sempit.", imageUri = null),
             onAddToCartClicked = {},
             onDeleteClicked = {}
         )

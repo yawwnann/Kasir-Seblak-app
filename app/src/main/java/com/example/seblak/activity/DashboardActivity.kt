@@ -1,15 +1,11 @@
 package com.example.seblak.activity
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -20,22 +16,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.rememberAsyncImagePainter
 import com.example.seblak.db.MenuDao
 import com.example.seblak.db.UserDao
-import com.example.seblak.model.Menu
 import com.example.seblak.ui.theme.PrimaryRedText
 import com.example.seblak.ui.theme.ButtonRed
-import java.text.NumberFormat
-import java.util.Locale
+import androidx.compose.material.icons.automirrored.filled.Logout
+
+// Import untuk MenuContentScreen dari package yang benar
+import com.example.seblak.ui.screens.MenuContentScreen // Pastikan path package ini benar
 
 sealed class BottomNavItem(val route: String, val title: String, val icon: ImageVector) {
     object Dasbor : BottomNavItem("dasbor", "Dasbor", Icons.Filled.Home)
@@ -47,9 +40,12 @@ sealed class BottomNavItem(val route: String, val title: String, val icon: Image
 class DashboardActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val userDao = UserDao(this)
+        // Inisialisasi DAO
+        // val userDao = UserDao(this) // Tidak digunakan di MainDashboardScreen saat ini, bisa dihapus jika tidak dipakai di TopAppBar
         val menuDao = MenuDao(this)
         setContent {
+            // Jika Anda menggunakan tema kustom, uncomment dan gunakan di sini
+            // SeblakTheme {
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colorScheme.background
@@ -64,6 +60,7 @@ class DashboardActivity : ComponentActivity() {
                     }
                 )
             }
+            // }
         }
     }
 }
@@ -76,20 +73,7 @@ fun MainDashboardScreen(menuDao: MenuDao, onLogoutClicked: () -> Unit) {
     val context = LocalContext.current
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Kasir Seblak - ${currentScreen.title}") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                ),
-                actions = {
-                    IconButton(onClick = onLogoutClicked) {
-                        Icon(Icons.Filled.Logout, contentDescription = "Logout", tint = PrimaryRedText)
-                    }
-                }
-            )
-        },
+
         bottomBar = {
             AppBottomNavigationBar(
                 currentScreen = currentScreen,
@@ -195,135 +179,10 @@ fun DasborContentScreen() {
         }) {
             Text("Tambah Menu Baru (Direct)")
         }
-        Button(onClick = { /*TODO*/ }) { Text("Fitur Dasbor 1") }
-        Button(onClick = { /*TODO*/ }) { Text("Fitur Dasbor 2") }
+        Button(onClick = { /* TODO: Implementasi Fitur Dasbor 1 */ }) { Text("Fitur Dasbor 1") }
+        Button(onClick = { /* TODO: Implementasi Fitur Dasbor 2 */ }) { Text("Fitur Dasbor 2") }
     }
 }
-
-@Composable
-fun MenuContentScreen(menuDao: MenuDao, onNavigateToTambahMenu: () -> Unit) {
-    var menuList by remember { mutableStateOf(emptyList<Menu>()) }
-
-    LaunchedEffect(Unit) {
-        menuList = menuDao.getAllMenu()
-    }
-
-    Scaffold(
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onNavigateToTambahMenu,
-                containerColor = ButtonRed,
-                contentColor = Color.White
-            ) {
-                Icon(Icons.Filled.Add, "Tambah Menu Baru")
-            }
-        },
-        floatingActionButtonPosition = FabPosition.End
-    ) { paddingValuesFromScaffold ->
-        if (menuList.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValuesFromScaffold)
-                    .padding(16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "Belum ada menu.\nSilakan tambahkan menu baru dengan tombol (+).",
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValuesFromScaffold),
-                contentPadding = PaddingValues(all = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(menuList) { menu ->
-                    MenuItemCard(menu = menu)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun MenuItemCard(menu: Menu) {
-    val currencyFormatter = remember {
-        NumberFormat.getCurrencyInstance(Locale("in", "ID"))
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp))
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            if (!menu.imageUri.isNullOrBlank()) {
-                Image(
-                    painter = rememberAsyncImagePainter(
-                        model = Uri.parse(menu.imageUri)
-                    ),
-                    contentDescription = menu.nama,
-                    modifier = Modifier
-                        .size(88.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(88.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Filled.RestaurantMenu,
-                        contentDescription = "Placeholder Menu",
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
-                        modifier = Modifier.size(40.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = menu.nama,
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
-                    color = PrimaryRedText
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = currencyFormatter.format(menu.harga),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
-                    color = MaterialTheme.colorScheme.primary
-                )
-                if (!menu.deskripsi.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = menu.deskripsi,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-        }
-    }
-}
-
 
 @Composable
 fun KasirContentScreen() {
@@ -347,32 +206,30 @@ fun LaporanContentScreen() {
     }
 }
 
-
 @Preview(showBackground = true)
 @Composable
 fun MainDashboardScreenPreview() {
-    MainDashboardScreen(
-        menuDao = MenuDao(LocalContext.current),
-        onLogoutClicked = {}
-    )
+    MaterialTheme { // Tambahkan MaterialTheme untuk preview yang lebih baik
+        MainDashboardScreen(
+            menuDao = MenuDao(LocalContext.current), // Perlu MenuDao untuk preview
+            onLogoutClicked = {}
+        )
+    }
 }
 
 @Preview(showBackground = true)
 @Composable
 fun AppBottomNavigationBarPreview() {
-    val navItems = listOf(BottomNavItem.Dasbor, BottomNavItem.Menu, BottomNavItem.Kasir, BottomNavItem.Laporan)
-    AppBottomNavigationBar(currentScreen = BottomNavItem.Dasbor, onItemSelected = {}, navItems = navItems)
+    MaterialTheme { // Tambahkan MaterialTheme
+        val navItems = listOf(BottomNavItem.Dasbor, BottomNavItem.Menu, BottomNavItem.Kasir, BottomNavItem.Laporan)
+        AppBottomNavigationBar(currentScreen = BottomNavItem.Dasbor, onItemSelected = {}, navItems = navItems)
+    }
 }
 
-@Preview(showBackground = true, name = "Menu Item Card Preview")
+@Preview(showBackground = true)
 @Composable
-fun MenuItemCardPreview() {
-    MenuItemCard(menu = Menu(1, "Seblak Komplit Istimewa", 25000.0, "Seblak super komplit dengan topping melimpah ruah, rasa pedas nampol.", imageUri = null))
-}
-
-@Preview(showBackground = true, name = "Menu Content Screen Preview")
-@Composable
-fun MenuContentScreenPreview() {
-    val context = LocalContext.current
-    MenuContentScreen(menuDao = MenuDao(context), onNavigateToTambahMenu = {})
+fun DasborContentScreenPreview() {
+    MaterialTheme { // Tambahkan MaterialTheme
+        DasborContentScreen()
+    }
 }
