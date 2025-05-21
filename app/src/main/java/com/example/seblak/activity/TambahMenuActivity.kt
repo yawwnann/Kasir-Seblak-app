@@ -46,6 +46,7 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.shouldShowRationale
+import saveImageToInternalStorage
 
 
 // Tambahkan dependensi accompanist-permissions jika belum
@@ -224,12 +225,21 @@ fun TambahMenuScreen(
                             Toast.makeText(context, "Harga tidak valid", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
+                        var finalImageToStore: String? = null
+                        imageUri?.let { uriFromPicker -> // imageUri adalah state Uri dari pemilih gambar
+                            finalImageToStore = saveImageToInternalStorage(context, uriFromPicker, namaMenu)
+                            if (finalImageToStore == null) {
+                                Toast.makeText(context, "Gagal memproses gambar", Toast.LENGTH_SHORT).show()
+                                // Anda bisa memutuskan apakah akan melanjutkan tanpa gambar atau tidak
+                            }
+                        }
+
 
                         val menuBaru = Menu(
                             nama = namaMenu,
                             harga = hargaDouble,
                             deskripsi = deskripsiMenu.ifBlank { null },
-                            imageUri = imageUri?.toString() // Simpan URI sebagai String
+                            imageUri = finalImageToStore// Simpan URI sebagai String
                         )
                         val result = menuDao.tambahMenu(menuBaru)
                         if (result != -1L) {

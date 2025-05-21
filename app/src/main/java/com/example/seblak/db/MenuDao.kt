@@ -5,7 +5,7 @@ import android.content.ContentValues
 import android.content.Context
 import com.example.seblak.model.Menu
 
-class MenuDao(context: Context) {
+open class MenuDao(context: Context) {
     private val dbHelper = DatabaseHelper(context)
 
     fun tambahMenu(menu: Menu): Long {
@@ -22,7 +22,7 @@ class MenuDao(context: Context) {
     }
 
     @SuppressLint("Range")
-    fun getAllMenu(): List<Menu> {
+    open fun getAllMenu(): List<Menu> {
         val menuList = mutableListOf<Menu>()
         val db = dbHelper.readableDatabase
         db.rawQuery("SELECT * FROM ${DatabaseHelper.TABLE_MENU} ORDER BY ${DatabaseHelper.COLUMN_MENU_NAMA} ASC", null)?.use { cursor ->
