@@ -23,7 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -40,7 +39,7 @@ import coil.request.ImageRequest
 import com.example.seblak.R
 import com.example.seblak.db.MenuDao
 import com.example.seblak.model.Menu
-import com.example.seblak.ui.common.DecorativeRedBackground // Pastikan ini diimpor
+import com.example.seblak.ui.common.DecorativeRedBackground // Pastikan ini diimpor jika digunakan
 import com.example.seblak.ui.theme.ButtonRed
 import com.example.seblak.ui.theme.PrimaryRedText
 import com.example.seblak.viewmodel.CartViewModel
@@ -51,7 +50,8 @@ import java.io.File
 import java.text.NumberFormat
 import java.util.Locale
 
-const val TAG_MENU_CONTENT_SCREEN = "MenuContentScreen" // Nama tag sudah diubah
+// Gunakan nama TAG yang konsisten
+const val TAG_MENU_CONTENT_SCREEN = "MenuContentScreen"
 const val TAG_MENU_ITEM_DISPLAY_CARD = "MenuItemDisplayCard"
 
 @Composable
@@ -91,6 +91,7 @@ fun MenuContentScreen(
         val itemToDeleteCurrently = menuToDelete
         AlertDialog(
             onDismissRequest = {
+                Log.d(TAG_MENU_CONTENT_SCREEN, "Delete dialog dismissed")
                 showDeleteDialog = false
                 menuToDelete = null
             },
@@ -99,34 +100,44 @@ fun MenuContentScreen(
             confirmButton = {
                 Button(
                     onClick = {
+                        Log.d(TAG_MENU_CONTENT_SCREEN, "Confirm delete for ${itemToDeleteCurrently?.nama}")
                         scope.launch {
                             itemToDeleteCurrently?.let { item ->
                                 var deleteSuccessInDb = false
-                                withContext(Dispatchers.IO) {
-                                    val rowsAffected = menuDao.deleteMenu(item.id)
-                                    if (rowsAffected > 0) {
-                                        deleteSuccessInDb = true
-                                        item.imageUri?.let { path ->
-                                            try {
-                                                val imageFile = File(path)
-                                                if (imageFile.exists() && imageFile.delete()) {
-                                                    Log.d(TAG_MENU_CONTENT_SCREEN, "Image file deleted: $path")
-                                                } else {
-                                                    Log.w(TAG_MENU_CONTENT_SCREEN, "Failed to delete or file not found: $path")
+                                try {
+                                    withContext(Dispatchers.IO) {
+                                        val rowsAffected = menuDao.deleteMenu(item.id)
+                                        if (rowsAffected > 0) {
+                                            deleteSuccessInDb = true
+                                            Log.d(TAG_MENU_CONTENT_SCREEN, "DB delete successful for ID: ${item.id}, rows: $rowsAffected")
+                                            item.imageUri?.let { path ->
+                                                try {
+                                                    val imageFile = File(path)
+                                                    if (imageFile.exists() && imageFile.delete()) {
+                                                        Log.d(TAG_MENU_CONTENT_SCREEN, "Image file deleted: $path")
+                                                    } else {
+                                                        Log.w(TAG_MENU_CONTENT_SCREEN, "Failed to delete or file not found: $path")
+                                                    }
+                                                } catch (e: Exception) {
+                                                    Log.e(TAG_MENU_CONTENT_SCREEN, "Error deleting image file: $path", e)
                                                 }
-                                            } catch (e: Exception) {
-                                                Log.e(TAG_MENU_CONTENT_SCREEN, "Error deleting image file: $path", e)
                                             }
+                                        } else {
+                                            Log.e(TAG_MENU_CONTENT_SCREEN, "DB delete FAILED for ID: ${item.id} (rowsAffected was 0)")
                                         }
-                                    } else {
-                                        Log.e(TAG_MENU_CONTENT_SCREEN, "DB delete FAILED for ID: ${item.id}")
                                     }
-                                }
-                                if (deleteSuccessInDb) {
-                                    Toast.makeText(context, "'${item.nama}' berhasil dihapus.", Toast.LENGTH_SHORT).show()
-                                    refreshTrigger++
-                                } else {
-                                    Toast.makeText(context, "Gagal menghapus '${item.nama}'.", Toast.LENGTH_LONG).show()
+                                    if (deleteSuccessInDb) {
+                                        Toast.makeText(context, "'${item.nama}' berhasil dihapus.", Toast.LENGTH_SHORT).show()
+                                        refreshTrigger++
+                                    } else {
+                                        Toast.makeText(context, "Gagal menghapus '${item.nama}'.", Toast.LENGTH_LONG).show()
+                                    }
+                                } catch (e: android.database.sqlite.SQLiteConstraintException) {
+                                    Log.e(TAG_MENU_CONTENT_SCREEN, "SQLiteConstraintException for ID ${item.id}", e)
+                                    Toast.makeText(context, "Menu '${item.nama}' tidak bisa dihapus karena sudah ada dalam riwayat transaksi.", Toast.LENGTH_LONG).show()
+                                } catch (e: Exception) {
+                                    Log.e(TAG_MENU_CONTENT_SCREEN, "General error during delete for ID ${item.id}", e)
+                                    Toast.makeText(context, "Terjadi kesalahan saat menghapus menu.", Toast.LENGTH_LONG).show()
                                 }
                             }
                         }
@@ -137,7 +148,10 @@ fun MenuContentScreen(
                 ) { Text("Ya, Hapus") }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false; menuToDelete = null }) { Text("Batal") }
+                TextButton(onClick = {
+                    Log.d(TAG_MENU_CONTENT_SCREEN, "Cancel delete dialog")
+                    showDeleteDialog = false; menuToDelete = null
+                }) { Text("Batal") }
             }
         )
     }
@@ -204,7 +218,7 @@ fun MenuContentScreen(
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(all = 16.dp), // Padding keseluruhan grid
+                        contentPadding = PaddingValues(all = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
@@ -212,10 +226,12 @@ fun MenuContentScreen(
                             MenuItemDisplayCard(
                                 menu = menu,
                                 onAddToCartClicked = {
+                                    Log.d(TAG_MENU_CONTENT_SCREEN, "Add to cart clicked for: ${menu.nama}")
                                     cartViewModel.addMenuToCart(menu)
                                     Toast.makeText(context, "${menu.nama} ditambahkan ke keranjang", Toast.LENGTH_SHORT).show()
                                 },
                                 onDeleteClicked = {
+                                    Log.d(TAG_MENU_CONTENT_SCREEN, "Delete clicked for: ${menu.nama}")
                                     menuToDelete = menu
                                     showDeleteDialog = true
                                 }
@@ -239,17 +255,16 @@ fun MenuItemDisplayCard(
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(), // Akan mengisi lebar sel grid
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp, hoveredElevation = 8.dp), // Tambah hoveredElevation
-        shape = RoundedCornerShape(16.dp), // Sudut lebih rounded
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface) // Warna dasar kartu
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp, hoveredElevation = 8.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Bagian Gambar dengan Gradient Overlay
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(4f / 3f) // Rasio aspek 4:3 untuk gambar
+                    .aspectRatio(4f / 3f)
                     .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             ) {
                 val imagePath = menu.imageUri
@@ -263,7 +278,15 @@ fun MenuItemDisplayCard(
                             .error(R.drawable.ic_error_image)
                             .fallback(R.drawable.ic_error_image)
                             .crossfade(true)
-                            .build()
+                            .build(),
+                        onState = { state ->
+                            when (state) {
+                                is AsyncImagePainter.State.Loading -> Log.d(TAG_MENU_ITEM_DISPLAY_CARD, "Image Loading: ${menu.nama}")
+                                is AsyncImagePainter.State.Success -> Log.d(TAG_MENU_ITEM_DISPLAY_CARD, "Image Success: ${menu.nama}")
+                                is AsyncImagePainter.State.Error -> Log.e(TAG_MENU_ITEM_DISPLAY_CARD, "Image Error: ${menu.nama}, Path: $imagePath", state.result.throwable)
+                                else -> {}
+                            }
+                        }
                     )
                     Image(
                         painter = painter,
@@ -286,20 +309,18 @@ fun MenuItemDisplayCard(
                         )
                     }
                 }
-                // Gradient overlay di atas gambar (opsional, untuk estetika)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(
                             Brush.verticalGradient(
                                 colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.1f), Color.Black.copy(alpha = 0.4f)),
-                                startY = 200f // Mulai gradient sedikit di atas bagian bawah
+                                startY = 200f
                             )
                         )
                 )
             }
 
-            // Kolom untuk Teks dan Tombol Aksi
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -308,7 +329,7 @@ fun MenuItemDisplayCard(
                 Text(
                     text = menu.nama,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = PrimaryRedText, // Warna utama untuk nama menu
+                    color = PrimaryRedText,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     minLines = 2
@@ -328,21 +349,19 @@ fun MenuItemDisplayCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(modifier = Modifier.height(4.dp)) // Beri jarak setelah deskripsi
+                    Spacer(modifier = Modifier.height(4.dp))
                 }
-
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween, // Tombol di ujung-ujung
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Tombol Delete (Outlined agar tidak terlalu dominan)
                     OutlinedButton(
                         onClick = onDeleteClicked,
-                        modifier = Modifier.height(38.dp), // Ukuran tombol
+                        modifier = Modifier.height(38.dp),
                         shape = RoundedCornerShape(8.dp),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.7f)),
                         contentPadding = PaddingValues(horizontal = 10.dp)
@@ -353,11 +372,7 @@ fun MenuItemDisplayCard(
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(18.dp)
                         )
-                        // Spacer(modifier = Modifier.width(4.dp))
-                        // Text("Hapus", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
                     }
-
-                    // Tombol Add to Cart (Filled)
                     Button(
                         onClick = onAddToCartClicked,
                         modifier = Modifier.height(38.dp),
@@ -380,7 +395,6 @@ fun MenuItemDisplayCard(
     }
 }
 
-// --- Preview Functions --- (Sesuaikan jika perlu)
 @Preview(showBackground = true, name = "Menu Content Screen - Grid With Data")
 @Composable
 fun MenuContentScreenGridWithDataPreview() {
@@ -398,7 +412,7 @@ fun MenuContentScreenGridWithDataPreview() {
     MaterialTheme { Surface { MenuContentScreen(menuDao = dummyMenuDao, cartViewModel = viewModel(), onNavigateToTambahMenu = {}) } }
 }
 
-@Preview(showBackground = true, widthDp = 180, name = "Menu Item Card (New Grid Look)")
+@Preview(showBackground = true, widthDp = 180, name = "Menu Item Display Card (Grid View)")
 @Composable
 fun MenuItemDisplayCardNewGridPreview() {
     MaterialTheme {

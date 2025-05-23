@@ -81,7 +81,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 // Mengubah ON DELETE SET NULL menjadi ON DELETE RESTRICT
                 + "FOREIGN KEY($COLUMN_DETAIL_MENU_ID_FK) REFERENCES $TABLE_MENU($COLUMN_MENU_ID) ON DELETE RESTRICT"
                 + ")")
-        // --- BATAS PERBAIKAN ---
+
     }
 
     override fun onCreate(db: SQLiteDatabase?) {

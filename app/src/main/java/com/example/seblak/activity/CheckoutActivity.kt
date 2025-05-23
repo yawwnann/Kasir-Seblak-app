@@ -18,8 +18,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-// import androidx.compose.material.icons.automirrored.filled.ArrowBack // Tidak dipakai jika TopAppBar hilang
+// import androidx.compose.material.icons.automirrored.filled.ArrowBack // Tidak digunakan lagi
 import androidx.compose.material.icons.filled.Money
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.*
@@ -49,14 +48,13 @@ import com.example.seblak.model.CartItem
 import com.example.seblak.model.Menu
 import com.example.seblak.model.Transaksi
 import com.example.seblak.model.DetailTransaksiItem
-import com.example.seblak.ui.common.DecorativeRedBackground // Pastikan ini diimpor
+import com.example.seblak.ui.common.DecorativeRedBackground
 import com.example.seblak.ui.theme.ButtonRed
 import com.example.seblak.ui.theme.PrimaryRedText
 // import com.example.seblak.ui.theme.SeblakTheme
 import com.example.seblak.viewmodel.CartViewModel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.NumberFormat
@@ -94,6 +92,9 @@ class CheckoutActivity : ComponentActivity() {
         val cartItemsForCheckout: ArrayList<CartItem> = intent.getParcelableArrayListExtra(EXTRA_CART_ITEMS_LIST) ?: ArrayList()
 
         Log.d(TAG, "onCreate - Total Price: $totalPriceFromCart, Items Count: ${cartItemsForCheckout.size}")
+        if (cartItemsForCheckout.isEmpty()){
+            Log.w(TAG, "onCreate - WARNING: cartItemsForCheckout is EMPTY!")
+        }
 
         setContent {
             val cartViewModel: CartViewModel = viewModel()
@@ -107,14 +108,11 @@ class CheckoutActivity : ComponentActivity() {
                 CheckoutScreen(
                     totalPrice = totalPriceFromCart,
                     checkoutItems = cartItemsForCheckout,
-                    // onBackClicked tidak diperlukan lagi jika TopAppBar dihapus
                     onPaymentConfirmed = { metode, bayar, kembalian ->
                         val currencyFormatter = NumberFormat.getCurrencyInstance(Locale("in", "ID"))
                         val strukItemsDetailsStrings = ArrayList<String>()
-                        val dbDateFormat =
-                            SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                        val displayDateFormat =
-                            SimpleDateFormat("dd MMMM yyyy, HH:mm:ss", Locale("in", "ID"))
+                        val dbDateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                        val displayDateFormat = SimpleDateFormat("dd MMMM yy, HH:mm:ss", Locale("in", "ID"))
                         val currentDate = Date()
                         val tanggalWaktuTransaksiDb = dbDateFormat.format(currentDate)
                         val tanggalWaktuStruk = displayDateFormat.format(currentDate)
@@ -133,11 +131,7 @@ class CheckoutActivity : ComponentActivity() {
                         )
                         val detailTransaksiList = cartItemsForCheckout.map { cartItem ->
                             strukItemsDetailsStrings.add(
-                                "${cartItem.menu.nama} (${cartItem.quantity}x ${
-                                    currencyFormatter.format(
-                                        cartItem.menu.harga
-                                    )
-                                }) = ${currencyFormatter.format(cartItem.subtotal)}"
+                                "${cartItem.menu.nama} (${cartItem.quantity}x ${currencyFormatter.format(cartItem.menu.harga)}) = ${currencyFormatter.format(cartItem.subtotal)}"
                             )
                             DetailTransaksiItem(
                                 menuId = cartItem.menu.id,
@@ -151,45 +145,29 @@ class CheckoutActivity : ComponentActivity() {
                         scope.launch {
                             var newTransactionId: Long = -1L
                             withContext(Dispatchers.IO) {
-                                newTransactionId = transaksiDao.simpanTransaksiLengkap(
-                                    transaksiHeader,
-                                    detailTransaksiList
-                                )
+                                newTransactionId = transaksiDao.simpanTransaksiLengkap(transaksiHeader, detailTransaksiList)
                             }
                             if (newTransactionId != -1L) {
-                                Toast.makeText(
-                                    this@CheckoutActivity,
-                                    "Transaksi ID: $newTransactionId berhasil disimpan",
-                                    Toast.LENGTH_LONG
-                                ).show()
+                                Toast.makeText(this@CheckoutActivity, "Transaksi ID: $newTransactionId berhasil disimpan", Toast.LENGTH_LONG).show()
                                 cartViewModel.clearCart()
-                                val strukIntent =
-                                    Intent(this@CheckoutActivity, StrukActivity::class.java).apply {
-                                        putStringArrayListExtra(
-                                            EXTRA_STRUK_ITEMS_DETAILS_STRINGS,
-                                            strukItemsDetailsStrings
-                                        )
-                                        putExtra(EXTRA_STRUK_TOTAL, totalPriceFromCart)
-                                        putExtra(EXTRA_STRUK_METODE, metodeBayarStr)
-                                        if (metode == MetodePembayaran.CASH) {
-                                            putExtra(EXTRA_STRUK_BAYAR, bayar)
-                                            putExtra(EXTRA_STRUK_KEMBALIAN, kembalian)
-                                        }
-                                        putExtra(EXTRA_STRUK_TANGGAL_WAKTU, tanggalWaktuStruk)
-                                        putExtra(EXTRA_STRUK_TRANSACTION_ID, newTransactionId)
+                                val strukIntent = Intent(this@CheckoutActivity, StrukActivity::class.java).apply {
+                                    putStringArrayListExtra(EXTRA_STRUK_ITEMS_DETAILS_STRINGS, strukItemsDetailsStrings)
+                                    putExtra(EXTRA_STRUK_TOTAL, totalPriceFromCart)
+                                    putExtra(EXTRA_STRUK_METODE, metodeBayarStr)
+                                    if (metode == MetodePembayaran.CASH) {
+                                        putExtra(EXTRA_STRUK_BAYAR, bayar)
+                                        putExtra(EXTRA_STRUK_KEMBALIAN, kembalian)
                                     }
+                                    putExtra(EXTRA_STRUK_TANGGAL_WAKTU, tanggalWaktuStruk)
+                                    putExtra(EXTRA_STRUK_TRANSACTION_ID, newTransactionId)
+                                }
                                 startActivity(strukIntent)
                                 finish()
                             } else {
-                                Toast.makeText(
-                                    this@CheckoutActivity,
-                                    "Gagal menyimpan transaksi.",
-                                    Toast.LENGTH_LONG
-                                ).show()
+                                Toast.makeText(this@CheckoutActivity, "Gagal menyimpan transaksi.", Toast.LENGTH_LONG).show()
                             }
                         }
-                    },
-                    onBackClicked = TODO()
+                    }
                 )
             }
             // }
@@ -202,8 +180,8 @@ class CheckoutActivity : ComponentActivity() {
 fun CheckoutScreen(
     totalPrice: Double,
     checkoutItems: List<CartItem>,
-    onBackClicked: () -> Unit, // Parameter ini mungkin tidak digunakan lagi jika TopAppBar dihapus
     onPaymentConfirmed: (metode: MetodePembayaran, bayar: Double, kembalian: Double) -> Unit
+    // Parameter onBackClicked dihapus dari sini
 ) {
     var selectedPaymentMethod by remember { mutableStateOf(MetodePembayaran.NONE) }
     var cashPaidAmountString by remember { mutableStateOf("") }
@@ -234,31 +212,12 @@ fun CheckoutScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) { // Box utama untuk background
-        DecorativeRedBackground(alpha = 0.15f) // Background dekoratif dengan alpha disesuaikan
+    Box(modifier = Modifier.fillMaxSize()) {
+        DecorativeRedBackground(alpha = 0.1f) // Alpha disesuaikan agar lebih subtle
 
         Scaffold(
-            containerColor = Color.Transparent, // Membuat Scaffold transparan agar background utama terlihat
-            topBar = {
-                TopAppBar(
-                    title = { Text("Checkout Pembayaran", color = PrimaryRedText) },
-                    navigationIcon = {
-                        IconButton(onClick = onBackClicked) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Kembali",
-                                tint = PrimaryRedText
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        titleContentColor = PrimaryRedText,
-                        navigationIconContentColor = PrimaryRedText
-                    ),
-
-                )
-            },
+            containerColor = Color.Transparent, // Scaffold transparan
+            // topBar dihapus
             bottomBar = {
                 val canConfirmButtonBeVisible = selectedPaymentMethod != MetodePembayaran.NONE && checkoutItems.isNotEmpty() && totalPrice > 0.0
                 if (canConfirmButtonBeVisible) {
@@ -280,7 +239,7 @@ fun CheckoutScreen(
                             .padding(horizontal = 16.dp, vertical = 20.dp)
                             .height(52.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = ButtonRed),
-                        shape = RoundedCornerShape(12.dp) // Bentuk tombol disamakan
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Text("Konfirmasi Pembayaran", fontSize = 16.sp, color = Color.White)
                     }
@@ -290,28 +249,33 @@ fun CheckoutScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues) // Padding dari Scaffold (untuk bottomBar)
-                    .padding(horizontal = 20.dp, vertical = 24.dp) // Padding konten utama
+                    .padding(paddingValues)
+                    .padding(top = 24.dp, start = 20.dp, end = 20.dp, bottom = 16.dp)
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                Text(
+                    "Checkout Pembayaran",
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                    color = PrimaryRedText,
+                    modifier = Modifier.padding(bottom = 24.dp)
+                )
 
                 Text(
-                    "Total Tagihan Anda", // Judul lebih jelas
-                    style = MaterialTheme.typography.titleLarge, // Ukuran disesuaikan
-                    color = PrimaryRedText,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    "Total Tagihan Anda",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     currencyFormatter.format(totalPrice),
-                    style = MaterialTheme.typography.displaySmall.copy( // Ukuran harga lebih besar
+                    style = MaterialTheme.typography.displaySmall.copy(
                         fontWeight = FontWeight.ExtraBold,
                         color = PrimaryRedText
                     ),
                     modifier = Modifier.padding(bottom = 32.dp)
                 )
 
-                Card( // Membungkus pilihan metode pembayaran dalam Card
+                Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
@@ -439,7 +403,18 @@ fun CheckoutScreenCashSelectedPreview() {
         CheckoutScreen(
             totalPrice = 75000.0,
             checkoutItems = listOf(CartItem(Menu(1,"Dummy Menu",75000.0, deskripsi = " enak", imageUri = null),1)),
-            onBackClicked = {},
+            onPaymentConfirmed = { _, _, _ -> }
+        )
+    }
+}
+
+@Preview(showBackground = true, device = "spec:width=411dp,height=891dp")
+@Composable
+fun CheckoutScreenQRISSelectedPreview() {
+    MaterialTheme {
+        CheckoutScreen(
+            totalPrice = 50000.0,
+            checkoutItems = listOf(CartItem(Menu(1,"Dummy Menu",50000.0, deskripsi = "mantap", imageUri = null),1)),
             onPaymentConfirmed = { _, _, _ -> }
         )
     }
