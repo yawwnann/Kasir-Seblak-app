@@ -27,15 +27,28 @@
         </activity>
         <activity
             android:name=".activity.LoginActivity"
-            android:theme="@style/Theme.Seblak" /> <activity
+            android:theme="@style/Theme.Seblak" />
+        <activity
             android:name=".activity.RegisterActivity"
-            android:theme="@style/Theme.Seblak" /> <activity
+            android:theme="@style/Theme.Seblak" />
+        <activity
             android:name=".activity.DashboardActivity"
             android:theme="@style/Theme.Seblak" />
         <activity
             android:name=".activity.TambahMenuActivity"
             android:label="Tambah Menu"
             android:theme="@style/Theme.Seblak" />
+        <activity
+            android:name=".activity.CheckoutActivity"
+            android:label="Checkout Pembayaran"
+            android:theme="@style/Theme.Seblak"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".activity.StrukActivity"
+            android:label="Struk Pembayaran"
+            android:theme="@style/Theme.Seblak" />
+
     </application>
 
 </manifest>
